@@ -10,21 +10,20 @@ import (
 	"sync"
 )
 
-//SubscriptionHandlerFunc function which would be invoked on incoming message
-// msg - incoming message
-// returns handling result: true if handled successfully, false - otherwise
-type SubscriptionHandlerFunc func(msg message.Message)bool
-
 const (
 	NatsUrlEnvVariableName = "NATS_URL"
 )
 
 var (
-	natsConn *nats.Conn
-	busMutex sync.Mutex
-	js nats.JetStreamContext
-	subscriptions = map[string][]SubscriptionHandlerFunc{}
+	natsConn      *nats.Conn
+	busMutex      sync.Mutex
+	js            nats.JetStreamContext
+	subscriptions = map[string][]message.Subscriber{}
+	publishers    = map[string]*natsSubscriber{}
 )
+
+type natsSubscriber struct {
+}
 
 func connection() nats.JetStreamContext {
 	busMutex.Lock()
@@ -69,7 +68,7 @@ func Close() {
 }
 
 //AddStream add new stream with dedicated subjects
-func AddStream(name string, subjects... string) error {
+func AddStream(name string, subjects ...string) error {
 	js := connection()
 
 	busMutex.Lock()
@@ -83,8 +82,8 @@ func AddStream(name string, subjects... string) error {
 	}
 	if stream == nil {
 		log.Printf("Adding streams: [%s]", strings.Join(subjects, ", "))
-		_,err := js.AddStream(&nats.StreamConfig{
-			Name: name,
+		_, err := js.AddStream(&nats.StreamConfig{
+			Name:     name,
 			Subjects: subjects,
 		})
 		if err != nil {
@@ -111,7 +110,7 @@ func PublishMessage(subject string, msg message.Message) error {
 		return err
 	}
 	log.Printf("Publishing message ID:[%s]", msg.Id())
-	_,err = js.Publish(subject, bytes)
+	_, err = js.Publish(subject, bytes)
 	if err != nil {
 		log.Errorf("Error publishing message ID:[%s]: %v", msg.Id(), err)
 		return err
@@ -137,18 +136,18 @@ func StartSubscriptions(consumer string) {
 //Subscribe - provide handler func to subject
 // subject - subscribe to
 // handler - handler func which would be invoked on incoming message
-func Subscribe(name string, handler SubscriptionHandlerFunc) {
+func Subscribe(name string, handler message.Subscriber) {
 	_, found := subscriptions[name]
 	if !found {
-		subscriptions[name] = []SubscriptionHandlerFunc{handler}
+		subscriptions[name] = []message.Subscriber{handler}
 	} else {
 		subscriptions[name] = append(subscriptions[name], handler)
 	}
 }
 
-func provideSubscriptionFunc(subject string) func (msg *nats.Msg) {
+func provideSubscriptionFunc(subject string) func(msg *nats.Msg) {
 	return func(msg *nats.Msg) {
-		handlerFuncs, found := subscriptions[subject]
+		subscribers, found := subscriptions[subject]
 		if !found {
 			log.Errorf("Handler func not found for subject [%s]", subject)
 		}
@@ -159,8 +158,8 @@ func provideSubscriptionFunc(subject string) func (msg *nats.Msg) {
 		m := message.FromDocument(d)
 		log.Printf("Invoking handlers for message ID:[%s]", m.Id())
 		success := true
-		for _,handle := range handlerFuncs {
-			success = success && handle(m)
+		for _, subscriber := range subscribers {
+			success = success && subscriber.OnMessage(subject, m)
 			log.Printf("Handler finished with success = %t", success)
 			if !success {
 				break
@@ -169,9 +168,28 @@ func provideSubscriptionFunc(subject string) func (msg *nats.Msg) {
 		if success {
 			err := msg.Ack()
 			if err != nil {
-				log.Errorf("Error sending ACK: %v",  err)
+				log.Errorf("Error sending ACK: %v", err)
 			}
 		}
 		log.Printf("Message ID:[%s] handled successfully = %t", m.Id(), success)
 	}
+}
+
+func (n *natsSubscriber) OnMessage(topic string, m message.Message) bool {
+	err := PublishMessage(topic, m)
+	if err != nil {
+		log.Errorf("Error while publish message in [%s]: %s", topic, m)
+		return false
+	}
+	return true
+}
+
+//Subscriber - returns subscriber which publishes message in NATS stream
+func Subscriber(topic string) message.Subscriber {
+	s, found := publishers[topic]
+	if found {
+		return s
+	}
+	publishers[topic] = &natsSubscriber{}
+	return publishers[topic]
 }

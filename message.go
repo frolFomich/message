@@ -1,13 +1,13 @@
 package message
 
 import (
-	doc "github.com/frolFomich/abstract-document"
+	"github.com/frolFomich/abstract-document"
 	"time"
 )
 
 //Message message interface
 type Message interface {
-	doc.Document
+	abstract_document.Document
 	//Id unique message id
 	Id() string
 	//Timestamp message creation timestamp

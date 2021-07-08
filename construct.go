@@ -1,12 +1,19 @@
 package message
 
-import doc "github.com/frolFomich/abstract-document"
+import (
+	"errors"
+	doc "github.com/frolFomich/abstract-document"
+)
 
-func New(options... OptMessage) *messageImpl {
+var (
+	ErrorInvalidAbstractDocument = errors.New("*AbstractDocument expected but not found")
+)
+
+func New(options ...OptMessage) Message {
 	msg := &messageImpl{
-		Document: doc.New(),
+		*doc.New(),
 	}
-	for _,opt := range options {
+	for _, opt := range options {
 		opt(msg)
 	}
 	if msg.Id() == "" || msg.Type() == "" || msg.Timestamp().IsZero() {
@@ -15,8 +22,12 @@ func New(options... OptMessage) *messageImpl {
 	return msg
 }
 
-func FromDocument(d doc.Document) *messageImpl {
+func FromDocument(d doc.Document) Message {
+	ad, ok := d.(*doc.AbstractDocument)
+	if !ok {
+		panic(ErrorInvalidAbstractDocument)
+	}
 	return &messageImpl{
-		Document: d,
+		*ad,
 	}
 }

@@ -7,23 +7,23 @@ import (
 
 const (
 	//IdPropertyName - message id property name
-	IdPropertyName        = "id"
+	IdPropertyName = "id"
 	//TimestampPropertyName - message timestamp property name
 	TimestampPropertyName = "timestamp"
 	//TypePropertyName - message type property name
-	TypePropertyName      = "type"
+	TypePropertyName = "type"
 	//DataTypePropertyName - message data type property name
-	DataTypePropertyName  = "dataType"
+	DataTypePropertyName = "dataType"
 	//DataPropertyName - message data property name
-	DataPropertyName      = "data"
+	DataPropertyName = "data"
 )
 
 type messageImpl struct {
-	abstract_document.Document
+	abstract_document.AbstractDocument
 }
 
 func (m *messageImpl) Id() string {
-	v,err := m.String(IdPropertyName)
+	v, err := m.String(IdPropertyName)
 	if err != nil {
 		panic(err)
 	}
@@ -31,15 +31,15 @@ func (m *messageImpl) Id() string {
 }
 
 func (m *messageImpl) Timestamp() time.Time {
-	v,err := m.Integer(TimestampPropertyName)
+	v, err := m.Integer(TimestampPropertyName)
 	if err != nil {
 		panic(err)
 	}
-	return time.Unix(0, v * int64(time.Millisecond))
+	return time.Unix(0, v*int64(time.Millisecond))
 }
 
 func (m *messageImpl) Type() string {
-	v,err := m.String(TypePropertyName)
+	v, err := m.String(TypePropertyName)
 	if err != nil {
 		panic(err)
 	}
@@ -47,7 +47,7 @@ func (m *messageImpl) Type() string {
 }
 
 func (m *messageImpl) DataType() string {
-	v,err := m.String(DataTypePropertyName)
+	v, err := m.String(DataTypePropertyName)
 	if err != nil {
 		panic(err)
 	}
